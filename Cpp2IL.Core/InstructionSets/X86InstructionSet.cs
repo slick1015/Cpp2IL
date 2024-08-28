@@ -87,15 +87,15 @@ public class X86InstructionSet : Cpp2IlInstructionSet
                 builder.Move(instruction.IP, ConvertOperand(instruction, 0), ConvertOperand(instruction, 1));
                 break;
             case Mnemonic.Cbw: // AX := sign-extend AL
-                builder.Move(instruction.IP, InstructionSetIndependentOperand.MakeRegister(X86Utils.GetRegisterName(Register.AX)), 
+                builder.Move(instruction.IP, InstructionSetIndependentOperand.MakeRegister(X86Utils.GetRegisterName(Register.AX)),
                     InstructionSetIndependentOperand.MakeRegister(X86Utils.GetRegisterName(Register.AL)));
                 break;
             case Mnemonic.Cwde: // EAX := sign-extend AX
-                builder.Move(instruction.IP, InstructionSetIndependentOperand.MakeRegister(X86Utils.GetRegisterName(Register.EAX)), 
+                builder.Move(instruction.IP, InstructionSetIndependentOperand.MakeRegister(X86Utils.GetRegisterName(Register.EAX)),
                     InstructionSetIndependentOperand.MakeRegister(X86Utils.GetRegisterName(Register.AX)));
                 break;
             case Mnemonic.Cdqe: // RAX := sign-extend EAX
-                builder.Move(instruction.IP, InstructionSetIndependentOperand.MakeRegister(X86Utils.GetRegisterName(Register.RAX)), 
+                builder.Move(instruction.IP, InstructionSetIndependentOperand.MakeRegister(X86Utils.GetRegisterName(Register.RAX)),
                     InstructionSetIndependentOperand.MakeRegister(X86Utils.GetRegisterName(Register.EAX)));
                 break;
             // it's very unsafe if there's been a jump to the next instruction here before.
@@ -216,14 +216,14 @@ public class X86InstructionSet : Cpp2IlInstructionSet
                     goto default;
 
                 break;
-            
+
             case Mnemonic.Divss: // Divide Scalar Single Precision Floating-Point Values. DEST[31:0] = DEST[31:0] / SRC[31:0]
                 builder.Divide(instruction.IP, ConvertOperand(instruction, 0), ConvertOperand(instruction, 0), ConvertOperand(instruction, 1));
                 break;
             case Mnemonic.Vdivss: // VEX Divide Scalar Single Precision Floating-Point Values. DEST[31:0] = SRC1[31:0] / SRC2[31:0]
                 builder.Divide(instruction.IP, ConvertOperand(instruction, 0), ConvertOperand(instruction, 1), ConvertOperand(instruction, 2));
                 break;
-            
+
             case Mnemonic.Ret:
                 // TODO: Verify correctness of operation with Vectors.
 
@@ -312,15 +312,15 @@ public class X86InstructionSet : Cpp2IlInstructionSet
             {
                 if (instruction.Op1Kind == OpKind.Memory)
                     goto default;
-                
+
                 var imm = instruction.Immediate8;
                 var src1 = X86Utils.GetRegisterName(instruction.Op0Register);
                 var src2 = X86Utils.GetRegisterName(instruction.Op1Register);
                 var dest = "XMM_TEMP";
                 //TEMP_DEST[31:0] := Select4(SRC1[127:0], imm8[1:0]);
-                builder.Move(instruction.IP, ConvertVector(dest, 0), ConvertVector(src1, imm & 0b11)); 
+                builder.Move(instruction.IP, ConvertVector(dest, 0), ConvertVector(src1, imm & 0b11));
                 //TEMP_DEST[63:32] := Select4(SRC1[127:0], imm8[3:2]);
-                builder.Move(instruction.IP, ConvertVector(dest, 1), ConvertVector(src1, (imm >> 2) & 0b11)); 
+                builder.Move(instruction.IP, ConvertVector(dest, 1), ConvertVector(src1, (imm >> 2) & 0b11));
                 //TEMP_DEST[95:64] := Select4(SRC2[127:0], imm8[5:4]);
                 builder.Move(instruction.IP, ConvertVector(dest, 2), ConvertVector(src2, (imm >> 4) & 0b11));
                 //TEMP_DEST[127:96] := Select4(SRC2[127:0], imm8[7:6]);
@@ -332,12 +332,12 @@ public class X86InstructionSet : Cpp2IlInstructionSet
                 static InstructionSetIndependentOperand ConvertVector(string reg, int imm) =>
                     InstructionSetIndependentOperand.MakeVectorElement(reg, IsilVectorRegisterElementOperand.VectorElementWidth.S, imm);
             }
-                
+
             case Mnemonic.Unpcklps : // Unpack and Interleave Low Packed Single Precision Floating-Point Values
             {
                 if (instruction.Op1Kind == OpKind.Memory)
                     goto default;
-                
+
                 var src1 = X86Utils.GetRegisterName(instruction.Op0Register);
                 var src2 = X86Utils.GetRegisterName(instruction.Op1Register);
                 var dest = "XMM_TEMP";
@@ -351,7 +351,7 @@ public class X86InstructionSet : Cpp2IlInstructionSet
                 static InstructionSetIndependentOperand ConvertVector(string reg, int imm) =>
                     InstructionSetIndependentOperand.MakeVectorElement(reg, IsilVectorRegisterElementOperand.VectorElementWidth.S, imm);
             }
-            
+
             case Mnemonic.Call:
                 // We don't try and resolve which method is being called, but we do need to know how many parameters it has
                 // I would hope that all of these methods have the same number of arguments, else how can they be inlined?
@@ -425,9 +425,9 @@ public class X86InstructionSet : Cpp2IlInstructionSet
             case Mnemonic.Ucomiss: // same, but unsigned
                 builder.Compare(instruction.IP, ConvertOperand(instruction, 0), ConvertOperand(instruction, 1));
                 break;
-            
+
             case Mnemonic.Cmove: // move if condition
-            case Mnemonic.Cmovne: 
+            case Mnemonic.Cmovne:
             case Mnemonic.Cmova:
             case Mnemonic.Cmovg:
             case Mnemonic.Cmovae:
@@ -435,9 +435,9 @@ public class X86InstructionSet : Cpp2IlInstructionSet
             case Mnemonic.Cmovb:
             case Mnemonic.Cmovl:
             case Mnemonic.Cmovbe:
-            case Mnemonic.Cmovle: 
-            case Mnemonic.Cmovs: 
-            case Mnemonic.Cmovns: 
+            case Mnemonic.Cmovle:
+            case Mnemonic.Cmovs:
+            case Mnemonic.Cmovns:
                 switch (instruction.Mnemonic)
                 {
                     case Mnemonic.Cmove: // equals
@@ -487,7 +487,7 @@ public class X86InstructionSet : Cpp2IlInstructionSet
                 builder.Nop(instruction.IP + 1); // exit for IF
                 break;
             }
-            
+
             case Mnemonic.Cmpxchg: // compare and exchange
             {
                 var accumulator = InstructionSetIndependentOperand.MakeRegister(instruction.Op1Register.GetSize() switch
@@ -508,11 +508,11 @@ public class X86InstructionSet : Cpp2IlInstructionSet
                 // ELSE
                 // SET ZF = 0
                 builder.Move(instruction.IP + 1, accumulator, dest); // accumulator = dest
-                
+
                 builder.Nop(instruction.IP + 2); // exit for IF
                 break;
             }
-            
+
             case Mnemonic.Jmp:
                 if (instruction.Op0Kind != OpKind.Register)
                 {
@@ -566,7 +566,7 @@ public class X86InstructionSet : Cpp2IlInstructionSet
                     builder.JumpIfSign(instruction.IP, jumpTarget);
                     break;
                 }
-                
+
                 goto default;
             case Mnemonic.Jns:
                 if (instruction.Op0Kind != OpKind.Register)
@@ -576,7 +576,7 @@ public class X86InstructionSet : Cpp2IlInstructionSet
                     builder.JumpIfNotSign(instruction.IP, jumpTarget);
                     break;
                 }
-                
+
                 goto default;
             case Mnemonic.Jg:
             case Mnemonic.Ja:

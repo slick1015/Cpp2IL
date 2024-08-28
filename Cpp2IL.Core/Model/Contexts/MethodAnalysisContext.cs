@@ -11,6 +11,7 @@ using LibCpp2IL;
 using LibCpp2IL.Metadata;
 using StableNameDotNet.Providers;
 using System.Linq;
+using Cpp2IL.Core.Graphs.Analysis;
 
 namespace Cpp2IL.Core.Model.Contexts;
 
@@ -80,7 +81,7 @@ public class MethodAnalysisContext : HasCustomAttributesAndName, IMethodInfoProv
 
     //TODO Support custom attributes on return types (v31 feature)
     public TypeAnalysisContext ReturnTypeContext => InjectedReturnType ?? DeclaringType!.DeclaringAssembly.ResolveIl2CppType(Definition!.RawReturnType!);
-    
+
     protected Memory<byte>? rawMethodBody;
 
 
@@ -156,7 +157,7 @@ public class MethodAnalysisContext : HasCustomAttributesAndName, IMethodInfoProv
         if (ConvertedIsil.Count == 0)
             return; //Nothing to do, empty function
 
-        
+
         ControlFlowGraph = ISILControlFlowGraph.Build(ConvertedIsil);
 
         // Post step to convert metadata usage. Ldstr Opcodes etc.
@@ -167,6 +168,8 @@ public class MethodAnalysisContext : HasCustomAttributesAndName, IMethodInfoProv
                 converter.Process(this, block);
             }
         }
+
+        StackAnalyzer.Analyze(this);
     }
 
     public void ReleaseAnalysisData()
