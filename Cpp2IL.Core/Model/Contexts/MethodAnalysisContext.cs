@@ -10,8 +10,12 @@ using Cpp2IL.Core.Utils;
 using LibCpp2IL;
 using LibCpp2IL.Metadata;
 using StableNameDotNet.Providers;
+
 using System.Linq;
 using Cpp2IL.Core.Graphs.Analysis;
+
+using Cpp2IL.Core.Graphs.Analysis.Stack;
+
 
 namespace Cpp2IL.Core.Model.Contexts;
 
