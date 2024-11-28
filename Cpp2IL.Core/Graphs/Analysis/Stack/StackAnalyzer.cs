@@ -11,9 +11,11 @@ public sealed class StackAnalyzer
 {
     private HashSet<Block<InstructionSetIndependentInstruction>> visited = [];
 
-    // TODO: Should stack state be per instruction or per block?
+    // This is overkill and slow but it works for now
     private Dictionary<Block<InstructionSetIndependentInstruction>, StackEntry> inComingDelta = [];
     private Dictionary<Block<InstructionSetIndependentInstruction>, StackEntry> outGoingDelta = [];
+
+    private Dictionary<InstructionSetIndependentInstruction, StackEntry> instructionsStackState = [];
 
     // debug
     public static int unbalancedStackCount { get; private set; } = 0;
@@ -41,22 +43,51 @@ public sealed class StackAnalyzer
             }
             else
             {
-                balanacedStackCount++;
+                
                 foreach(var block in graph.Blocks)
                 {
-                    // TODO: Replace push instructions with a move Stack 0x20, reg1 or whatever
-                    // push instructions can be nopped? Same with shiftstack instructions?
+                    foreach (var instruction in block.Instructions)
+                    {
+                        var currentPos = (analyzer.instructionsStackState[instruction].StackState.Count) * archSize;
+                        if (instruction.OpCode.Mnemonic == IsilMnemonic.Push)
+                        {
+                            instruction.OpCode = InstructionSetIndependentOpCode.Move;
+                            instruction.Operands = [InstructionSetIndependentOperand.MakeStack(currentPos), instruction.Operands[1]];
+                        }
+                        else if (instruction.OpCode.Mnemonic == IsilMnemonic.Pop)
+                        {
+
+                            instruction.OpCode = InstructionSetIndependentOpCode.Move;
+                            instruction.Operands = [instruction.Operands[0], InstructionSetIndependentOperand.MakeStack(currentPos)];
+                        }
+                        else if (instruction.OpCode.Mnemonic == IsilMnemonic.ShiftStack)
+                        {
+                            instruction.OpCode = InstructionSetIndependentOpCode.Nop;
+                            instruction.Operands = [];
+                        } 
+                    }
                     if (block.BlockType == BlockType.Call)
                     {
                         var callInstruction = block.Instructions[^1];
                         
-                        var stackState = analyzer.outGoingDelta[block].StackState;
+                        var stackState = analyzer.instructionsStackState[callInstruction].StackState;
+                        var stackSize = stackState.Count * archSize;
+                        for (int i = 0; i < callInstruction.Operands.Length; i++)
+                        {
+                            var op = callInstruction.Operands[i];
+                            if (op.Type == InstructionSetIndependentOperand.OperandType.StackOffset)
+                            {
+                                
+                                var actual = stackSize - ((IsilStackOperand)op.Data).Offset;
+                                callInstruction.Operands[i] = InstructionSetIndependentOperand.MakeStack(actual);
+                            }
+                        }
 
-
-                        var stackParams = callInstruction.Operands.Where(op => op.Type == InstructionSetIndependentOperand.OperandType.StackOffset);
-                        // TODO: translate stack offsets relative to call instruction to stack offsets relative to the base of the stack for the function
+                        // Filter out stack operands with an offset < 0, we've overestimated how many actual args this function has
+                        callInstruction.Operands = callInstruction.Operands.Where(op => op.Type != InstructionSetIndependentOperand.OperandType.StackOffset || ((IsilStackOperand)op.Data).Offset > stackSize).ToArray();
                     }
                 }
+                balanacedStackCount++;
 
             }
         }
@@ -70,24 +101,30 @@ public sealed class StackAnalyzer
     {
         var blockDelta = inComingDelta[block].Clone();
 
-        // TODO: Handle interrupt blocks, should we just remove them?
+        // TODO: Handle interrupt blocks: Call -> Interrupt -> Exit
         if (block.BlockType == BlockType.Call && block.Successors.Count == 1 && block.Successors[0].BlockType == BlockType.Exit)
         {
+            // still need to calculate it for instructions
             // Tail call / CallNoReturn = Flush stack?
             blockDelta.StackState.Clear();
             outGoingDelta[block] = blockDelta;
         }
         else
         {
+            var previous = blockDelta;
             foreach (var instruction in block.Instructions)
             {
+                instructionsStackState[instruction] = previous;
+
                 switch (instruction.OpCode.Mnemonic)
                 {
                     case IsilMnemonic.Push:
-                        blockDelta.PushEntry("push");
+                        previous = previous.Clone();
+                        previous.PushEntry("push");
                         break;
                     case IsilMnemonic.Pop:
-                        blockDelta.PopEntry();
+                        previous = previous.Clone();
+                        previous.PopEntry();
                         break;
                     case IsilMnemonic.ShiftStack:
                         var value = (int)((IsilImmediateOperand)instruction.Operands[0].Data).Value;
@@ -96,22 +133,23 @@ public sealed class StackAnalyzer
                             throw new Exception("Unaligned stack shift");
                         } else
                         {
+                            previous = previous.Clone();
                             for (int i = 0; i < Math.Abs(value / archSize); i++)
                             {
                                 if (value < 0)
                                 {
-                                    blockDelta.PushEntry("allocated space");
+                                    previous.PushEntry("allocated space");
                                 }
                                 else
                                 {
-                                    blockDelta.PopEntry();
+                                    previous.PopEntry();
                                 }
                             }
                         }
-                        
                         break;
                 }
             }
+            blockDelta = previous;
             outGoingDelta[block] = blockDelta;
         }
 
@@ -127,9 +165,10 @@ public sealed class StackAnalyzer
             {
                 var expectedDelta = inComingDelta[succ];
 
-                if (expectedDelta != blockDelta)
+                if (expectedDelta.StackState.Count != blockDelta.StackState.Count)
                 {
-                    // TODO: Investigate Guid\.ctor_Byte[].dot, stack appears to be well formed but results in unbalanced stack somehow
+                    // TODO: Investigate SystemGuid::.ctor(Byte[]), stack appears to be well formed but results in unbalanced stack somehow
+                    // TODO: Investigate System.WeakReference::get_Target(), has some wack stack manipulation
                     throw new Exception("Unbalanced stack");
                 }
                 inComingDelta[succ] = blockDelta;
