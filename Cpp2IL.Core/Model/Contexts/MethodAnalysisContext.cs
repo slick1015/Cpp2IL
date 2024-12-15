@@ -173,7 +173,8 @@ public class MethodAnalysisContext : HasCustomAttributesAndName, IMethodInfoProv
             }
         }
 
-        StackAnalyzer.Analyze(this);
+        if (!StackAnalyzer.Analyze(this))
+            return;
     }
 
     public void ReleaseAnalysisData()

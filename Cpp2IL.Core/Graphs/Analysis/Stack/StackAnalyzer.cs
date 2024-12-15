@@ -1,17 +1,25 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using LibCpp2IL;
 using Cpp2IL.Core.ISIL;
 using Cpp2IL.Core.Model.Contexts;
-using System.Linq;
 
 namespace Cpp2IL.Core.Graphs.Analysis.Stack;
 
+/* The whole purpose of this class is to try analyze the stack state of a method.
+ * With this information we should be able to determine the offset of the stack 
+ * for instructions and blocks and correct "move stack(0xXX) , reg10" instructions
+ * without a correct stack offset. Also NOP shift stack instructions.
+ */
 public sealed class StackAnalyzer
 {
     private HashSet<Block<InstructionSetIndependentInstruction>> visited = [];
 
-    // This is overkill and slow but it works for now
+    // Stack offset for each block we have. To my knowledge this should be consistent.
+    // If it's not then its a problem (should be a very small % of cases)
+    // Most of these mismatches currently are because of switch/exception catchers
+    // which are not implemented yet.
     private Dictionary<Block<InstructionSetIndependentInstruction>, StackEntry> inComingDelta = [];
     private Dictionary<Block<InstructionSetIndependentInstruction>, StackEntry> outGoingDelta = [];
 
@@ -23,14 +31,14 @@ public sealed class StackAnalyzer
 
     private StackAnalyzer() { }
 
-    public static void Analyze(MethodAnalysisContext context)
+    public static bool Analyze(MethodAnalysisContext context)
     {
         try
         {
             var graph = context.ControlFlowGraph;
             if (graph == null)
             {
-                return;
+                return false;
             }
             var analyzer = new StackAnalyzer();
             analyzer.inComingDelta[graph.EntryBlock] = new StackEntry();
@@ -39,32 +47,38 @@ public sealed class StackAnalyzer
             var outDelta = analyzer.outGoingDelta[graph.ExitBlock];
             if (outDelta.StackState.Count != 0)
             {
+                // This method ends with a non-empty stack, let's just bail early for now
                 unbalancedStackCount++;
+                return false;
             }
             else
             {
-                
                 foreach(var block in graph.Blocks)
                 {
+                    InstructionSetIndependentInstruction? previousInstruction = null;
                     foreach (var instruction in block.Instructions)
                     {
                         var currentPos = (analyzer.instructionsStackState[instruction].StackState.Count) * archSize;
-                        if (instruction.OpCode.Mnemonic == IsilMnemonic.Push)
-                        {
-                            instruction.OpCode = InstructionSetIndependentOpCode.Move;
-                            instruction.Operands = [InstructionSetIndependentOperand.MakeStack(currentPos), instruction.Operands[1]];
-                        }
-                        else if (instruction.OpCode.Mnemonic == IsilMnemonic.Pop)
-                        {
 
-                            instruction.OpCode = InstructionSetIndependentOpCode.Move;
-                            instruction.Operands = [instruction.Operands[0], InstructionSetIndependentOperand.MakeStack(currentPos)];
-                        }
-                        else if (instruction.OpCode.Mnemonic == IsilMnemonic.ShiftStack)
+                        /*
+                         *   Push/Pop
+                         *       builder.ShiftStack(instruction.IP, -operandSize);
+                         *       builder.Move(instruction.IP, InstructionSetIndependentOperand.MakeStack(0), ConvertOperand(instruction, 0));
+                         */
+                        if (instruction.OpCode.Mnemonic == IsilMnemonic.ShiftStack)
                         {
+                            // NOP the shift stack instruction
                             instruction.OpCode = InstructionSetIndependentOpCode.Nop;
                             instruction.Operands = [];
-                        } 
+                            // Correct stack offset for previous move instruction if it matches (push/pop combo)
+                            if (previousInstruction != null &&
+                                previousInstruction.OpCode == InstructionSetIndependentOpCode.Move &&
+                                previousInstruction.Operands is [InstructionSetIndependentOperand { Type: InstructionSetIndependentOperand.OperandType.StackOffset, Data: IsilStackOperand { Offset: 0 } }, InstructionSetIndependentOperand op2]) 
+                            { 
+                                previousInstruction.Operands = [InstructionSetIndependentOperand.MakeStack(currentPos), op2];
+                            }
+                        }
+                        previousInstruction = instruction;
                     }
                     if (block.BlockType == BlockType.Call)
                     {
@@ -88,15 +102,20 @@ public sealed class StackAnalyzer
                     }
                 }
                 balanacedStackCount++;
+                return true;
 
             }
         }
         catch (Exception e)
         {
             unbalancedStackCount++;
+            return false;
         }
     }
 
+
+
+    // Traverse the graph and calculate the stack state for each block and instruction
     private void TraverseGraph(Block<InstructionSetIndependentInstruction> block, int archSize)
     {
         var blockDelta = inComingDelta[block].Clone();
@@ -118,14 +137,6 @@ public sealed class StackAnalyzer
 
                 switch (instruction.OpCode.Mnemonic)
                 {
-                    case IsilMnemonic.Push:
-                        previous = previous.Clone();
-                        previous.PushEntry("push");
-                        break;
-                    case IsilMnemonic.Pop:
-                        previous = previous.Clone();
-                        previous.PopEntry();
-                        break;
                     case IsilMnemonic.ShiftStack:
                         var value = (int)((IsilImmediateOperand)instruction.Operands[0].Data).Value;
                         if (value % archSize != 0)

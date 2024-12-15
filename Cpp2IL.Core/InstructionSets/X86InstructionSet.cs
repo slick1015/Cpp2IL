@@ -240,8 +240,8 @@ public class X86InstructionSet : Cpp2IlInstructionSet
                 break;
             case Mnemonic.Push:
                 operandSize = instruction.Op0Kind == OpKind.Register ? instruction.Op0Register.GetSize() : instruction.MemorySize.GetSize();
-                builder.ShiftStack(instruction.IP, -operandSize);
                 builder.Move(instruction.IP, InstructionSetIndependentOperand.MakeStack(0), ConvertOperand(instruction, 0));
+                builder.ShiftStack(instruction.IP, -operandSize);
                 break;
             case Mnemonic.Pop:
                 operandSize = instruction.Op0Kind == OpKind.Register ? instruction.Op0Register.GetSize() : instruction.MemorySize.GetSize();
