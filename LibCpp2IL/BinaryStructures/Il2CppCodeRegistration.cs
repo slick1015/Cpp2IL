@@ -27,10 +27,14 @@ namespace LibCpp2IL.BinaryStructures
             
             public ulong unresolvedVirtualCallCount; //Renamed to unresolvedIndirectCallCount in v29.1
             public ulong unresolvedVirtualCallPointers; //Renamed to unresolvedIndirectCallPointers in v29.1
-            
-            [Version(Min = 29.1f)] 
+
+            //Not in 2021.3 version of v31, but present in 2022.3 (v31.1)
+            [Version(Min = 29.1f, Max = 29.1f)]
+            [Version(Min = 31.1f)]
             public ulong unresolvedInstanceCallPointers;
-            [Version(Min = 29.1f)] 
+
+            [Version(Min = 29.1f, Max = 29.1f)]
+            [Version(Min = 31.1f)]
             public ulong unresolvedStaticCallPointers;
             
             public ulong interopDataCount;

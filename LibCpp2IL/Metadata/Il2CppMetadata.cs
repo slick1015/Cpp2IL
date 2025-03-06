@@ -108,7 +108,13 @@ namespace LibCpp2IL.Metadata
             {
                 //2022.3.33 introduces v31. Unity why would you bump this on a minor version.
                 //Adds one new field (return type token) to method def
-                actualVersion = 31;
+                //2021.3.40 backported the new field but NOT the changes from v29.1, so there's a 31.1 now.
+                if (unityVersion.IsGreaterEqual(2022, 3, 33, UnityVersionType.Final, 1))
+                    //V31 with changes in codereg
+                    actualVersion = 31.1f;
+                else
+                    //v31 WITHOUT changes in codereg 
+                    actualVersion = 31;
             }
             else actualVersion = version;
 
